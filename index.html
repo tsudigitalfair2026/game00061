@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>🐧ぺんぎん神経衰弱🐧</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+-webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+width:100%;
+height:100%;
+overflow:hidden;
+touch-action:none;
+font-family:sans-serif;
+background:linear-gradient(180deg,#8fd3ff,#eaf9ff);
+}
+
+.screen{
+display:none;
+width:100%;
+height:100%;
+}
+
+.active{
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+text-align:center;
+padding:16px;
+}
+
+h1{
+font-size:clamp(28px,7vw,42px);
+margin-bottom:16px;
+}
+
+p{
+line-height:1.6;
+font-size:16px;
+}
+
+button{
+border:none;
+border-radius:16px;
+padding:16px 28px;
+font-size:20px;
+font-weight:bold;
+background:#0078d7;
+color:white;
+cursor:pointer;
+min-width:200px;
+margin-top:20px;
+}
+
+button:active{
+transform:scale(0.97);
+}
+
+#gameScreen{
+display:none;
+flex-direction:column;
+height:100vh;
+padding:4px;
+}
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+font-size:20px;
+font-weight:bold;
+padding:4px 8px;
+height:48px;
+flex-shrink:0;
+}
+
+#board{
+flex:1;
+display:grid;
+grid-template-columns:repeat(4,1fr);
+grid-template-rows:repeat(4,1fr);
+gap:6px;
+padding:4px;
+height:calc(100vh - 56px);
+max-height:calc(100vh - 56px);
+}
+
+.card{
+width:100%;
+height:100%;
+border-radius:12px;
+background:#0a5ea8;
+display:flex;
+justify-content:center;
+align-items:center;
+font-size:min(8vw,34px);
+font-weight:bold;
+color:white;
+cursor:pointer;
+user-select:none;
+box-shadow:0 2px 5px rgba(0,0,0,.25);
+transition:.15s;
+}
+
+.card.open{
+background:white;
+color:black;
+}
+
+.card.matched{
+background:#9cffaf;
+color:black;
+}
+
+.resultScore{
+font-size:32px;
+font-weight:bold;
+margin:15px 0;
+}
+
+.rank{
+font-size:50px;
+font-weight:bold;
+color:#ff7b00;
+margin:10px 0;
+}
+
+.desc{
+max-width:500px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="startScreen" class="screen active">
+<h1>🐧ぺんぎん神経衰弱🐧</h1>
+
+<p class="desc">
+同じ絵を2枚見つけよう！<br>
+全部で16枚の難しいコース！<br>
+制限時間は60秒です。<br>
+高得点を目指そう！
+</p>
+
+<button id="startBtn">スタート</button>
+</div>
+
+<div id="gameScreen" class="screen">
+
+<div class="topbar">
+<div>🏆 <span id="score">0</span></div>
+<div>⏰ <span id="time">60</span></div>
+</div>
+
+<div id="board"></div>
+
+</div>
+
+<div id="resultScreen" class="screen">
+<h1>結果発表</h1>
+
+<div class="resultScore">
+スコア：<span id="finalScore">0</span>
+</div>
+
+<div id="rank" class="rank">C</div>
+
+<button id="retryBtn">もう一度遊ぶ</button>
+</div>
+
+<script>
+const cardData=[
+"🐧","🐧",
+"🐤","🐤",
+"🐥","🐥",
+"🐦","🐦",
+"🐟","🐟",
+"🧊","🧊",
+"❄️","❄️",
+"🌊","🌊"
+];
+
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const resultScreen=document.getElementById("resultScreen");
+const board=document.getElementById("board");
+
+const scoreEl=document.getElementById("score");
+const timeEl=document.getElementById("time");
+const finalScoreEl=document.getElementById("finalScore");
+const rankEl=document.getElementById("rank");
+
+let score=0;
+let time=60;
+let timer=null;
+
+let firstCard=null;
+let secondCard=null;
+let lock=false;
+let matchedCount=0;
+
+function shuffle(array){
+for(let i=array.length-1;i>0;i--){
+const j=Math.floor(Math.random()*(i+1));
+[array[i],array[j]]=[array[j],array[i]];
+}
+return array;
+}
+
+function startGame(){
+
+score=0;
+time=60;
+matchedCount=0;
+firstCard=null;
+secondCard=null;
+lock=false;
+
+scoreEl.textContent=score;
+timeEl.textContent=time;
+
+startScreen.classList.remove("active");
+resultScreen.classList.remove("active");
+
+gameScreen.style.display="flex";
+
+board.innerHTML="";
+
+const shuffled=shuffle([...cardData]);
+
+shuffled.forEach(icon=>{
+
+const card=document.createElement("div");
+card.className="card";
+card.dataset.icon=icon;
+card.textContent="❔";
+
+card.addEventListener("click",()=>flipCard(card));
+
+board.appendChild(card);
+
+});
+
+clearInterval(timer);
+
+timer=setInterval(()=>{
+
+time--;
+timeEl.textContent=time;
+
+if(time<=0){
+finishGame();
+}
+
+},1000);
+}
+
+function flipCard(card){
+
+if(lock) return;
+if(card.classList.contains("open")) return;
+if(card.classList.contains("matched")) return;
+
+card.classList.add("open");
+card.textContent=card.dataset.icon;
+
+if(!firstCard){
+firstCard=card;
+return;
+}
+
+secondCard=card;
+lock=true;
+
+if(firstCard.dataset.icon===secondCard.dataset.icon){
+
+firstCard.classList.add("matched");
+secondCard.classList.add("matched");
+
+matchedCount+=2;
+
+score+=100;
+scoreEl.textContent=score;
+
+firstCard=null;
+secondCard=null;
+lock=false;
+
+if(matchedCount===16){
+
+score+=time*10;
+scoreEl.textContent=score;
+
+finishGame(true);
+}
+
+}else{
+
+score=Math.max(0,score-10);
+scoreEl.textContent=score;
+
+setTimeout(()=>{
+
+firstCard.classList.remove("open");
+secondCard.classList.remove("open");
+
+firstCard.textContent="❔";
+secondCard.textContent="❔";
+
+firstCard=null;
+secondCard=null;
+lock=false;
+
+},700);
+
+}
+}
+
+function finishGame(clear=false){
+
+clearInterval(timer);
+
+gameScreen.style.display="none";
+resultScreen.classList.add("active");
+
+finalScoreEl.textContent=score;
+
+let rank="C";
+
+if(score>=700) rank="B";
+if(score>=1000) rank="A";
+if(score>=1400) rank="S";
+
+if(clear && score>=1200){
+rank="S";
+}
+
+rankEl.textContent=rank;
+}
+
+document.getElementById("startBtn").addEventListener("click",startGame);
+document.getElementById("retryBtn").addEventListener("click",startGame);
+
+document.addEventListener("gesturestart",e=>e.preventDefault());
+document.addEventListener("dblclick",e=>e.preventDefault());
+
+window.addEventListener("touchmove",e=>{
+e.preventDefault();
+},{passive:false});
+</script>
+
+</body>
+</html>
